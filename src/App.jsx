@@ -83,7 +83,7 @@ function Tap({children,onTap,style={},disabled}){
 
 /* ─── NAV ─── */
 function Nav({active,go}){
-  const tabs=[{id:"home",l:"Home"},{id:"insights",l:"Stats"},{id:"profile",l:"Profile"},{id:"search",l:"Search"},{id:"referral",l:"Share"}];
+  const tabs=[{id:"home",l:"Home"},{id:"insights",l:"Stats"},{id:"profile",l:"Profile"},{id:"search",l:"Search"},{id:"feedback",l:"Feedback"},{id:"referral",l:"Share"}];
   return(
     <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:9999,paddingBottom:"env(safe-area-inset-bottom)"}}>
       <div style={{background:"rgba(10,10,18,0.95)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",height:56}}>
@@ -328,7 +328,118 @@ function SearchScreen({entries,fType,setFType,search,setSearch}){
   );
 }
 
-/* ─── SHARE SCREEN ─── */
+/* ─── FEEDBACK FORM SCREEN ─── */
+function FeedbackScreen() {
+  const [rating, setRating] = useState(null);
+  const [use, setUse] = useState(null);
+  const [comments, setComments] = useState("");
+  const [bugs, setBugs] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const ratings = ["😞","😕","😐","🙂","😄"];
+  const useOptions = ["Daily","Few times a week","Weekly","Not sure yet"];
+
+  async function submit() {
+    if (rating === null) return;
+    setSubmitting(true);
+    // Format feedback as a readable message to send via email
+    const body = `
+CALM QUOTE BETA FEEDBACK
+------------------------
+Overall rating: ${ratings[rating]} (${rating + 1}/5)
+Would use: ${use || "Not answered"}
+Comments: ${comments || "None"}
+Bugs / Issues: ${bugs || "None"}
+Date: ${new Date().toLocaleDateString()}
+Region: ${REGION}
+    `.trim();
+    // Open mailto — works on all mobile devices natively
+    const mailto = `mailto:rahulkanety@gmail.com?subject=${encodeURIComponent("Calm Quote Beta Feedback")}&body=${encodeURIComponent(body)}`;
+    window.open(mailto, "_blank");
+    setSubmitted(true);
+    setSubmitting(false);
+  }
+
+  if (submitted) {
+    return (
+      <div style={{ padding:"52px 20px calc(80px + env(safe-area-inset-bottom))", paddingTop:"calc(52px + env(safe-area-inset-top,0px))", textAlign:"center" }}>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>🙏</div>
+        <h2 style={{ color:"#fff", fontSize:22, fontWeight:900, margin:"0 0 12px", letterSpacing:"-.5px" }}>Thank you!</h2>
+        <p style={{ color:"rgba(255,255,255,0.4)", fontSize:15, lineHeight:1.7, margin:"0 0 32px" }}>Your feedback helps make Calm Quote better for everyone. We read every single response.</p>
+        <Tap onTap={() => setSubmitted(false)} style={{ display:"inline-block", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:"12px 24px" }}>
+          <span style={{ color:"rgba(255,255,255,0.5)", fontWeight:600, fontSize:14 }}>Submit another</span>
+        </Tap>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding:"52px 20px calc(80px + env(safe-area-inset-bottom))", paddingTop:"calc(52px + env(safe-area-inset-top,0px))" }}>
+      <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2.5, marginBottom:6 }}>Beta Program</p>
+      <h2 style={{ color:"#fff", fontSize:24, fontWeight:900, margin:"0 0 6px", letterSpacing:"-1px" }}>Share Feedback</h2>
+      <p style={{ color:"rgba(255,255,255,0.3)", fontSize:14, margin:"0 0 28px", lineHeight:1.6 }}>Takes 2 minutes. Every response shapes the next version.</p>
+
+      {/* Overall rating */}
+      <div style={{ marginBottom: 24 }}>
+        <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:14 }}>Overall experience <span style={{ color:"rgba(255,80,80,0.6)" }}>*</span></p>
+        <div style={{ display:"flex", gap:10 }}>
+          {ratings.map((r, i) => (
+            <Tap key={i} onTap={() => setRating(i)}
+              style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6, padding:"12px 4px", background: rating===i ? "rgba(196,181,253,0.1)" : "rgba(255,255,255,0.03)", border:`1px solid ${rating===i ? "rgba(196,181,253,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius:16, transition:"all .15s" }}>
+              <span style={{ fontSize:24 }}>{r}</span>
+              <span style={{ color: rating===i ? "#c4b5fd" : "rgba(255,255,255,0.15)", fontSize:9, fontWeight:600 }}>{i+1}/5</span>
+            </Tap>
+          ))}
+        </div>
+      </div>
+
+      {/* Would you use it */}
+      <div style={{ marginBottom: 24 }}>
+        <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:14 }}>How often would you use this?</p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          {useOptions.map(o => (
+            <Tap key={o} onTap={() => setUse(o)}
+              style={{ padding:"12px 14px", background: use===o ? "rgba(110,231,183,0.1)" : "rgba(255,255,255,0.03)", border:`1px solid ${use===o ? "rgba(110,231,183,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius:14, textAlign:"center", transition:"all .15s" }}>
+              <span style={{ color: use===o ? "#6ee7b7" : "rgba(255,255,255,0.4)", fontSize:13, fontWeight:600 }}>{o}</span>
+            </Tap>
+          ))}
+        </div>
+      </div>
+
+      {/* What do you love */}
+      <div style={{ marginBottom: 20 }}>
+        <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:12 }}>What's working well?</p>
+        <textarea value={comments} onChange={e => setComments(e.target.value)}
+          placeholder="What did you enjoy or find valuable..."
+          style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, color:"rgba(255,255,255,0.8)", padding:"14px 16px", fontSize:14, lineHeight:1.65, resize:"none", outline:"none", boxSizing:"border-box", fontFamily:"inherit", minHeight:90, WebkitAppearance:"none", transition:"border-color .2s" }}
+          onFocus={e => e.target.style.borderColor = "rgba(196,181,253,0.4)"}
+          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.07)"}
+        />
+      </div>
+
+      {/* Bugs */}
+      <div style={{ marginBottom: 28 }}>
+        <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:12 }}>Any bugs or issues?</p>
+        <textarea value={bugs} onChange={e => setBugs(e.target.value)}
+          placeholder="Anything broken or confusing..."
+          style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, color:"rgba(255,255,255,0.8)", padding:"14px 16px", fontSize:14, lineHeight:1.65, resize:"none", outline:"none", boxSizing:"border-box", fontFamily:"inherit", minHeight:80, WebkitAppearance:"none", transition:"border-color .2s" }}
+          onFocus={e => e.target.style.borderColor = "rgba(253,186,116,0.4)"}
+          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.07)"}
+        />
+      </div>
+
+      {/* Submit */}
+      <Tap onTap={rating !== null && !submitting ? submit : undefined}
+        style={{ background: rating !== null ? "linear-gradient(135deg,#c4b5fd,#8b5cf6)" : "rgba(255,255,255,0.05)", borderRadius:18, padding:"17px", textAlign:"center", opacity: rating === null ? .4 : 1, boxShadow: rating !== null ? "0 8px 28px rgba(196,181,253,0.35)" : "none", transition:"all .2s" }}>
+        {submitting
+          ? <Dots color="#fff" />
+          : <span style={{ color: rating !== null ? "#fff" : "rgba(255,255,255,0.3)", fontWeight:800, fontSize:16 }}>Send Feedback ✦</span>}
+      </Tap>
+      {rating === null && <p style={{ color:"rgba(255,255,255,0.15)", fontSize:12, textAlign:"center", marginTop:10 }}>Please select a rating to continue</p>}
+    </div>
+  );
+}
 function ShareScreen(){
   const[copied,sc]=useState(false);
   function copy(){vibe();try{navigator.clipboard.writeText(REFERRAL);}catch{const el=document.createElement("textarea");el.value=REFERRAL;el.style.position="absolute";el.style.left="-9999px";document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);}sc(true);setTimeout(()=>sc(false),2500);}
@@ -553,6 +664,7 @@ export default function App(){
   if(view==="insights") return <div style={ROOT}><StatsScreen entries={ent} streak={str} weekly={wk} wLoad={wL} onGenWeekly={doWeekly}/><Nav active={tab} go={go}/></div>;
   if(view==="profile")  return <div style={ROOT}><ProfileScreen profile={pf} entries={ent} onInsight={t=>sPf(p=>({...p,insights:[...(p.insights||[]).slice(-4),t]}))}/><Nav active={tab} go={go}/></div>;
   if(view==="search")   return <div style={ROOT}><SearchScreen entries={filt} fType={fType} setFType={sFType} search={srch} setSearch={sSrch}/><Nav active={tab} go={go}/></div>;
+  if(view==="feedback") return <div style={ROOT}><FeedbackScreen/><Nav active={tab} go={go}/></div>;
   if(view==="referral") return <div style={ROOT}><ShareScreen/><Nav active={tab} go={go}/></div>;
 
   /* ── HOME ── */
