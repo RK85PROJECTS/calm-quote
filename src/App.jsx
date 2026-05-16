@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
 /* ─── REGION ─── */
 function detectRegion() {
@@ -60,7 +60,80 @@ function recompute(entries,prev={}){
 
 async function ask(sys,usr){try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:sys,messages:[{role:"user",content:usr}]})});const d=await r.json();return d.content?.[0]?.text||"";}catch{return "";}}
 
-/* ─── ATOMS ─── */
+/* ─── VOICE INPUT HOOK ─── */
+function useVoice(onResult) {
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(false);
+  const recRef = useRef(null);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSupported(true);
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = navigator.language || "en-US";
+      rec.onresult = e => {
+        const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
+        onResult(transcript);
+      };
+      rec.onend = () => setListening(false);
+      rec.onerror = () => setListening(false);
+      recRef.current = rec;
+    }
+  }, []);
+
+  function start() {
+    if (!recRef.current || listening) return;
+    vibe();
+    try { recRef.current.start(); setListening(true); } catch {}
+  }
+
+  function stop() {
+    if (!recRef.current || !listening) return;
+    vibe();
+    try { recRef.current.stop(); setListening(false); } catch {}
+  }
+
+  function toggle() { listening ? stop() : start(); }
+
+  return { listening, supported, start, stop, toggle };
+}
+
+/* ─── VOICE BUTTON ─── */
+function VoiceBtn({ onResult, style = {} }) {
+  const { listening, supported, toggle, stop } = useVoice(onResult);
+  if (!supported) return null;
+
+  return (
+    <div
+      onPointerDown={toggle}
+      onPointerUp={() => {}} // hold-to-talk handled via listening state
+      style={{
+        width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+        background: listening ? "rgba(196,181,253,0.2)" : "rgba(255,255,255,0.06)",
+        border: `1.5px solid ${listening ? "rgba(196,181,253,0.6)" : "rgba(255,255,255,0.1)"}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", transition: "all .2s",
+        boxShadow: listening ? "0 0 16px rgba(196,181,253,0.4)" : "none",
+        WebkitTapHighlightColor: "transparent",
+        userSelect: "none",
+        ...style,
+      }}
+    >
+      <span style={{ fontSize: 18 }}>{listening ? "⏹" : "🎙"}</span>
+      {listening && (
+        <span style={{
+          position: "absolute", width: 40, height: 40, borderRadius: "50%",
+          border: "1.5px solid rgba(196,181,253,0.4)",
+          animation: "ripple 1s infinite ease-out",
+        }} />
+      )}
+      <style>{`@keyframes ripple{0%{transform:scale(1);opacity:.8}100%{transform:scale(1.8);opacity:0}}`}</style>
+    </div>
+  );
+}
 function Dots({color="#c4b5fd"}){
   return(
     <div style={{display:"flex",gap:5,alignItems:"center"}}>
@@ -335,40 +408,64 @@ function FeedbackScreen() {
   const [comments, setComments] = useState("");
   const [bugs, setBugs] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const ratings = ["😞","😕","😐","🙂","😄"];
   const useOptions = ["Daily","Few times a week","Weekly","Not sure yet"];
 
-  async function submit() {
+  function submit() {
     if (rating === null) return;
-    setSubmitting(true);
-    // Format feedback as a readable message to send via email
-    const body = `
-CALM QUOTE BETA FEEDBACK
-------------------------
-Overall rating: ${ratings[rating]} (${rating + 1}/5)
-Would use: ${use || "Not answered"}
-Comments: ${comments || "None"}
-Bugs / Issues: ${bugs || "None"}
-Date: ${new Date().toLocaleDateString()}
-Region: ${REGION}
-    `.trim();
-    // Open mailto — works on all mobile devices natively
-    const mailto = `mailto:rahulkanety@gmail.com?subject=${encodeURIComponent("Calm Quote Beta Feedback")}&body=${encodeURIComponent(body)}`;
-    window.open(mailto, "_blank");
+    vibe();
+
+    // 1. Always save locally first — works on every device
+    const entry = {
+      id: Date.now(),
+      date: toDay(),
+      rating: rating + 1,
+      ratingEmoji: ratings[rating],
+      use: use || "Not answered",
+      comments: comments || "",
+      bugs: bugs || "",
+      region: REGION,
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem("cq_feedback") || "[]");
+      localStorage.setItem("cq_feedback", JSON.stringify([...existing, entry]));
+    } catch {}
+
+    // 2. Try to open email app — works on Android, may not on iOS
+    const body = `CALM QUOTE BETA FEEDBACK\n------------------------\nRating: ${ratings[rating]} (${rating+1}/5)\nUsage: ${use||"Not answered"}\nComments: ${comments||"None"}\nBugs: ${bugs||"None"}\nDate: ${toDay()}\nRegion: ${REGION}`.trim();
+    try {
+      window.location.href = `mailto:YOUR_EMAIL_HERE?subject=${encodeURIComponent("Calm Quote Beta Feedback")}&body=${encodeURIComponent(body)}`;
+    } catch {}
+
     setSubmitted(true);
-    setSubmitting(false);
+  }
+
+  function copyFeedback() {
+    vibe();
+    try {
+      const all = JSON.parse(localStorage.getItem("cq_feedback") || "[]");
+      const txt = all.map(f =>
+        `[${f.date}] Rating: ${f.ratingEmoji} ${f.rating}/5 | Usage: ${f.use} | Comments: ${f.comments || "—"} | Bugs: ${f.bugs || "—"} | Region: ${f.region}`
+      ).join("\n\n");
+      navigator.clipboard.writeText(txt || "No feedback yet.");
+    } catch {}
   }
 
   if (submitted) {
     return (
       <div style={{ padding:"52px 20px calc(80px + env(safe-area-inset-bottom))", paddingTop:"calc(52px + env(safe-area-inset-top,0px))", textAlign:"center" }}>
-        <div style={{ fontSize: 52, marginBottom: 20 }}>🙏</div>
+        <div style={{ fontSize:52, marginBottom:20 }}>🙏</div>
         <h2 style={{ color:"#fff", fontSize:22, fontWeight:900, margin:"0 0 12px", letterSpacing:"-.5px" }}>Thank you!</h2>
-        <p style={{ color:"rgba(255,255,255,0.4)", fontSize:15, lineHeight:1.7, margin:"0 0 32px" }}>Your feedback helps make Calm Quote better for everyone. We read every single response.</p>
-        <Tap onTap={() => setSubmitted(false)} style={{ display:"inline-block", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:"12px 24px" }}>
-          <span style={{ color:"rgba(255,255,255,0.5)", fontWeight:600, fontSize:14 }}>Submit another</span>
+        <p style={{ color:"rgba(255,255,255,0.4)", fontSize:15, lineHeight:1.7, margin:"0 0 8px" }}>Your feedback has been saved.</p>
+        <p style={{ color:"rgba(255,255,255,0.25)", fontSize:13, lineHeight:1.6, margin:"0 0 28px" }}>If your email app didn't open, tap below to copy your feedback and send it manually.</p>
+        <Tap onTap={copyFeedback}
+          style={{ display:"block", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:"13px 24px", marginBottom:12 }}>
+          <span style={{ color:"rgba(255,255,255,0.6)", fontWeight:700, fontSize:14 }}>📋 Copy feedback to send</span>
+        </Tap>
+        <Tap onTap={() => { setSubmitted(false); setRating(null); setUse(null); setComments(""); setBugs(""); }}
+          style={{ display:"block", background:"transparent", borderRadius:14, padding:"10px" }}>
+          <span style={{ color:"rgba(255,255,255,0.2)", fontWeight:600, fontSize:13 }}>Submit another</span>
         </Tap>
       </div>
     );
@@ -380,9 +477,11 @@ Region: ${REGION}
       <h2 style={{ color:"#fff", fontSize:24, fontWeight:900, margin:"0 0 6px", letterSpacing:"-1px" }}>Share Feedback</h2>
       <p style={{ color:"rgba(255,255,255,0.3)", fontSize:14, margin:"0 0 28px", lineHeight:1.6 }}>Takes 2 minutes. Every response shapes the next version.</p>
 
-      {/* Overall rating */}
-      <div style={{ marginBottom: 24 }}>
-        <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:14 }}>Overall experience <span style={{ color:"rgba(255,80,80,0.6)" }}>*</span></p>
+      {/* Rating */}
+      <div style={{ marginBottom:24 }}>
+        <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:14 }}>
+          Overall experience <span style={{ color:"rgba(255,80,80,0.6)" }}>*</span>
+        </p>
         <div style={{ display:"flex", gap:10 }}>
           {ratings.map((r, i) => (
             <Tap key={i} onTap={() => setRating(i)}
@@ -394,8 +493,8 @@ Region: ${REGION}
         </div>
       </div>
 
-      {/* Would you use it */}
-      <div style={{ marginBottom: 24 }}>
+      {/* Usage */}
+      <div style={{ marginBottom:24 }}>
         <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:14 }}>How often would you use this?</p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
           {useOptions.map(o => (
@@ -407,36 +506,50 @@ Region: ${REGION}
         </div>
       </div>
 
-      {/* What do you love */}
-      <div style={{ marginBottom: 20 }}>
+      {/* What's working */}
+      <div style={{ marginBottom:20 }}>
         <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:12 }}>What's working well?</p>
-        <textarea value={comments} onChange={e => setComments(e.target.value)}
-          placeholder="What did you enjoy or find valuable..."
-          style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, color:"rgba(255,255,255,0.8)", padding:"14px 16px", fontSize:14, lineHeight:1.65, resize:"none", outline:"none", boxSizing:"border-box", fontFamily:"inherit", minHeight:90, WebkitAppearance:"none", transition:"border-color .2s" }}
-          onFocus={e => e.target.style.borderColor = "rgba(196,181,253,0.4)"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.07)"}
-        />
+        <div style={{position:"relative"}}>
+          <textarea value={comments} onChange={e => setComments(e.target.value)}
+            placeholder="What did you enjoy or find valuable..."
+            style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, color:"rgba(255,255,255,0.8)", padding:"14px 56px 14px 16px", fontSize:14, lineHeight:1.65, resize:"none", outline:"none", boxSizing:"border-box", fontFamily:"inherit", minHeight:90, WebkitAppearance:"none", transition:"border-color .2s" }}
+            onFocus={e => e.target.style.borderColor="rgba(196,181,253,0.4)"}
+            onBlur={e => e.target.style.borderColor="rgba(255,255,255,0.07)"}
+          />
+          <div style={{position:"absolute",bottom:10,right:10}}>
+            <VoiceBtn onResult={text => setComments(text)} />
+          </div>
+        </div>
       </div>
 
       {/* Bugs */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom:28 }}>
         <p style={{ color:"rgba(255,255,255,0.2)", fontSize:10, textTransform:"uppercase", letterSpacing:2, marginBottom:12 }}>Any bugs or issues?</p>
-        <textarea value={bugs} onChange={e => setBugs(e.target.value)}
-          placeholder="Anything broken or confusing..."
-          style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, color:"rgba(255,255,255,0.8)", padding:"14px 16px", fontSize:14, lineHeight:1.65, resize:"none", outline:"none", boxSizing:"border-box", fontFamily:"inherit", minHeight:80, WebkitAppearance:"none", transition:"border-color .2s" }}
-          onFocus={e => e.target.style.borderColor = "rgba(253,186,116,0.4)"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.07)"}
-        />
+        <div style={{position:"relative"}}>
+          <textarea value={bugs} onChange={e => setBugs(e.target.value)}
+            placeholder="Anything broken or confusing..."
+            style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, color:"rgba(255,255,255,0.8)", padding:"14px 56px 14px 16px", fontSize:14, lineHeight:1.65, resize:"none", outline:"none", boxSizing:"border-box", fontFamily:"inherit", minHeight:80, WebkitAppearance:"none", transition:"border-color .2s" }}
+            onFocus={e => e.target.style.borderColor="rgba(253,186,116,0.4)"}
+            onBlur={e => e.target.style.borderColor="rgba(255,255,255,0.07)"}
+          />
+          <div style={{position:"absolute",bottom:10,right:10}}>
+            <VoiceBtn onResult={text => setBugs(text)} />
+          </div>
+        </div>
       </div>
 
       {/* Submit */}
-      <Tap onTap={rating !== null && !submitting ? submit : undefined}
-        style={{ background: rating !== null ? "linear-gradient(135deg,#c4b5fd,#8b5cf6)" : "rgba(255,255,255,0.05)", borderRadius:18, padding:"17px", textAlign:"center", opacity: rating === null ? .4 : 1, boxShadow: rating !== null ? "0 8px 28px rgba(196,181,253,0.35)" : "none", transition:"all .2s" }}>
-        {submitting
-          ? <Dots color="#fff" />
-          : <span style={{ color: rating !== null ? "#fff" : "rgba(255,255,255,0.3)", fontWeight:800, fontSize:16 }}>Send Feedback ✦</span>}
+      <Tap onTap={rating !== null ? submit : undefined}
+        style={{ background: rating !== null ? "linear-gradient(135deg,#c4b5fd,#8b5cf6)" : "rgba(255,255,255,0.05)", borderRadius:18, padding:"17px", textAlign:"center", opacity: rating === null ? .4 : 1, boxShadow: rating !== null ? "0 8px 28px rgba(196,181,253,0.35)" : "none", transition:"all .2s", marginBottom:12 }}>
+        <span style={{ color: rating !== null ? "#fff" : "rgba(255,255,255,0.3)", fontWeight:800, fontSize:16 }}>Save Feedback ✦</span>
       </Tap>
-      {rating === null && <p style={{ color:"rgba(255,255,255,0.15)", fontSize:12, textAlign:"center", marginTop:10 }}>Please select a rating to continue</p>}
+      {rating === null && <p style={{ color:"rgba(255,255,255,0.15)", fontSize:12, textAlign:"center", marginBottom:16 }}>Please select a rating to continue</p>}
+
+      {/* Copy all feedback — for you as the developer */}
+      <Tap onTap={copyFeedback}
+        style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"12px", textAlign:"center" }}>
+        <span style={{ color:"rgba(255,255,255,0.2)", fontSize:12, fontWeight:600 }}>📋 Copy all feedback (developer only)</span>
+      </Tap>
     </div>
   );
 }
@@ -630,10 +743,15 @@ export default function App(){
               <p style={{color:"rgba(255,255,255,0.3)",fontSize:12,lineHeight:1.6,margin:0}}>{w.framework}</p>
             </div>
             <p style={{color:"rgba(255,255,255,0.85)",fontSize:17,lineHeight:1.75,fontWeight:500,marginBottom:18}}>{w.prompts[step]}</p>
-            <textarea value={ans[step]} onChange={e=>{const a=[...ans];a[step]=e.target.value;sAns(a);}}
-              onFocus={e=>e.target.style.borderColor=`${w.color}55`} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.07)"}
-              placeholder="Write honestly here..." autoFocus
-              style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,color:"rgba(255,255,255,0.85)",padding:"16px",fontSize:16,lineHeight:1.75,resize:"none",outline:"none",boxSizing:"border-box",fontFamily:"inherit",minHeight:150,WebkitAppearance:"none",transition:"border-color .2s"}}/>
+            <div style={{position:"relative"}}>
+              <textarea value={ans[step]} onChange={e=>{const a=[...ans];a[step]=e.target.value;sAns(a);}}
+                onFocus={e=>e.target.style.borderColor=`${w.color}55`} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.07)"}
+                placeholder="Write or speak your answer..." autoFocus
+                style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,color:"rgba(255,255,255,0.85)",padding:"16px 56px 16px 16px",fontSize:16,lineHeight:1.75,resize:"none",outline:"none",boxSizing:"border-box",fontFamily:"inherit",minHeight:150,WebkitAppearance:"none",transition:"border-color .2s"}}/>
+              <div style={{position:"absolute",bottom:12,right:12}}>
+                <VoiceBtn onResult={text=>{const a=[...ans];a[step]=text;sAns(a);}} />
+              </div>
+            </div>
             {last&&(
               <div style={{marginTop:20}}>
                 <p style={{color:"rgba(255,255,255,0.2)",fontSize:10,textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>How do you feel?</p>
