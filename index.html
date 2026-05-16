@@ -2,28 +2,55 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#080810" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+
+    <title>Calm Quote</title>
+    <meta name="description" content="A daily journal for all 5 types of wealth — Time, Money, Mental, Physical, Social." />
+
+    <!-- Theme + PWA -->
+    <meta name="theme-color" content="#09090f" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Calm Quote" />
-    <meta name="description" content="A daily wealth journal for the 5 dimensions of a truly rich life." />
 
-    <!-- PWA: Add to Home Screen icon -->
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Fonts -->
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Inter font (used in App.jsx) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-    <title>Calm Quote</title>
+    <!-- Open Graph / social preview -->
+    <meta property="og:title" content="Calm Quote" />
+    <meta property="og:description" content="A daily journal for all 5 types of wealth." />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:url" content="https://calm-quote.vercel.app" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body, #root { height: 100%; background: #080810; }
-      body { -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        background: #09090f;
+        color-scheme: dark;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overscroll-behavior: none;
+      }
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      /* Prevent iOS Safari from zooming on input focus */
+      input, textarea, select {
+        font-size: 16px;
+      }
     </style>
   </head>
   <body>
