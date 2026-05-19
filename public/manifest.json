@@ -1,7 +1,7 @@
 {
-  "name": "Calm Quote",
-  "short_name": "Calm Quote",
-  "description": "A daily journal for all 5 types of wealth.",
+  "name": "SndR",
+  "short_name": "SndR",
+  "description": "A voice-first mirror for all 5 types of wealth. Speak. The Guide listens.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
